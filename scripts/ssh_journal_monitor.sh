@@ -2,13 +2,13 @@
 
 #==========================================================
 # Script: monitor_ssh_bruteforce.sh
-# Descripción: detecta intentos de fuerza bruta en SSH
+# Descripción: detecta intentos de fuerza bruta en SSH 
 # =========================================================
 
 
 #--- Configuración ---
 # intentos mínimos para alerta
-THRESHOLD=${1:-5}
+THRESHOLD=${1:-5}  
 # Periodo de análisis
 TIME_FRAME=${2:-"1 hour ago"}
 LOG_SERVICE="ssh"
@@ -29,19 +29,33 @@ echo -e "Periodo analizado: ${blue}$TIME_FRAME${nc}"
 echo -e "Umbral de alerta: ${blue}$THRESHOLD intentos${nc}"
 echo -e "-----------------------------------------------------------------------------------\n"
 
-echo -e "-----------------------------------------------------------------------------------"
-sudo journalctl -u "$LOG_SERVICE" --since "$TIME_FRAME" |
-	grep "Failed password" |
-	awk '{print $(NF-3)}' |
-	sort | uniq -c | sort -nr |
+# Obtener datos
+Results=$(sudo journalctl -u "$LOG_SERVICE" --since "$TIME_FRAME" | 
+	grep "Failed password" | 
+	awk '{print $(NF-3)}' | 
+	sort | uniq -c | sort -nr) 
+
+if [ -z "$Results"  ]; then
+	echo -e "${green}[+] No se registraron intentos fallidos en el periodo analizado${nc}\n"
+else
+	echo "$Results"
+	
+	Alert_found=false 
 
 while read -r count ip; do
 if [ "$count" -ge "$THRESHOLD" ]; then
 	echo -e "${red}[!] Alerta:${nc} ${blue}$ip${nc} superó el umbral con ${red}$count${nc} intentos fallidos"
+
+	Alert_found=true
 else
 	echo -e "Info:\t$ip tiene $count intentos (bajo el umbral)"
 fi
-done 
+done <<< "$Results"
+
+if [ "$Alert_found" = false ]; then
+	echo -e "${green}No hay Ips que superen el umbral de  $THRESHOLD intentos${nc}"
+	fi
+fi
 
 echo -e "-----------------------------------------------------------------------------------\n"
 echo -e "${green}[+] Análisis finalizado${nc}\n"
